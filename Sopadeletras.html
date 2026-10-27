@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sopa de Letras: Ética en la IA</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/space-grotesk@5.0.0/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.0/index.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  :root {
+    --bg-0: #0a0e1a;
+    --bg-1: #121829;
+    --bg-2: #1a2340;
+    --accent: #00d9ff;
+    --accent-2: #a855f7;
+    --accent-3: #22d3ee;
+    --success: #10b981;
+    --danger: #ef4444;
+    --text: #e5e7eb;
+    --text-dim: #94a3b8;
+    --cell-size: min(3.2vw, 38px);
+  }
+  
+  body {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    background: radial-gradient(ellipse at top, #1a2340 0%, #0a0e1a 60%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+    overflow-x: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      radial-gradient(circle at 20% 30%, rgba(0, 217, 255, 0.08) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  
+  h1 {
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  
+  .subtitle {
+    color: var(--text-dim);
+    font-size: clamp(0.85rem, 2vw, 1rem);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  
+  .stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+  
+  .stat {
+    background: rgba(26, 35, 64, 0.6);
+    border: 1px solid rgba(0, 217, 255, 0.2);
+    border-radius: 12px;
+    padding: 12px 20px;
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 140px;
+    justify-content: center;
+  }
+  
+  .stat-icon {
+    font-size: 1.3rem;
+  }
+  
+  .stat-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  
+  .timer.warning .stat-value {
+    color: var(--danger);
+    animation: pulse 1s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: start;
+  }
+  
+  @media (max-width: 900px) {
+    .main-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  
+  .grid-wrapper {
+    background: rgba(18, 24, 41, 0.6);
+    border: 1px solid rgba(0, 217, 255, 0.2);
+    border-radius: 16px;
+    padding: 16px;
+    backdrop-filter: blur(10px);
+    overflow: auto;
+  }
+  
+  .grid {
+    display: grid;
+    gap: 2px;
+    margin: 0 auto;
+    width: fit-content;
+  }
+  
+  .cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(26, 35, 64, 0.4);
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: clamp(0.75rem, 2vw, 1rem);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+  }
+  
+  .cell:hover {
+    background: rgba(0, 217, 255, 0.15);
+    transform: scale(1.05);
+  }
+  
+  .cell.selecting {
+    background: linear-gradient(135deg, rgba(0, 217, 255, 0.4), rgba(168, 85, 247, 0.4));
+    color: white;
+    box-shadow: 0 0 12px rgba(0, 217, 255, 0.5);
+  }
+  
+  .cell.found {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.4), rgba(34, 211, 238, 0.4));
+    color: white;
+    animation: foundPop 0.4s ease;
+  }
+  
+  @keyframes foundPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  .words-panel {
+    background: rgba(18, 24, 41, 0.6);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    min-width: 260px;
+  }
+  
+  .panel-title {
+    font-size: 0.85rem;
+    color: var(--accent-2);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(168, 85, 247, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .counter {
+    background: rgba(168, 85, 247, 0.15);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent-2);
+  }
+  
+  .words-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .word-item {
+    padding: 10px 14px;
+    background: rgba(26, 35, 64, 0.4);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .word-item.found {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.15), transparent);
+    border-left-color: var(--success);
+    color: var(--success);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+  }
+  
+  .word-item .check {
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  
+  .word-item.found .check {
+    opacity: 1;
+  }
+  
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 24px;
+    flex-wrap: wrap;
+  }
+  
+  .btn {
+    background: linear-gradient(135deg, rgba(0, 217, 255, 0.15), rgba(168, 85, 247, 0.15));
+    border: 1px solid rgba(0, 217, 255, 0.3);
+    color: var(--text);
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 217, 255, 0.2);
+    border-color: var(--accent);
+  }
+  
+  .btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white;
+    border: none;
+  }
+  
+  .btn.primary:hover {
+    box-shadow: 0 6px 24px rgba(168, 85, 247, 0.4);
+  }
+  
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 14, 26, 0.85);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  
+  .modal-overlay.active {
+    display: flex;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .modal {
+    background: linear-gradient(135deg, var(--bg-1), var(--bg-2));
+    border: 1px solid rgba(0, 217, 255, 0.3);
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 450px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: slideUp 0.4s ease;
+  }
+  
+  @keyframes slideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  
+  .modal-icon {
+    font-size: 4rem;
+    margin-bottom: 16px;
+  }
+  
+  .modal h2 {
+    font-size: 1.8rem;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  .modal p {
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  
+  .modal-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  
+  .modal-stat {
+    background: rgba(26, 35, 64, 0.5);
+    padding: 14px;
+    border-radius: 10px;
+  }
+  
+  .modal-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  
+  .modal-stat-label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  
+  .hint {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-top: 12px;
+    font-style: italic;
+  }
+  
+  @media (max-width: 600px) {
+    :root { --cell-size: 7vw; }
+    .stat { min-width: 110px; padding: 10px 14px; }
+    .words-panel { min-width: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🤖 Sopa de Letras: Ética en la IA</h1>
+    <p class="subtitle">Nivel Intermedio · 10 palabras · 5 minutos</p>
+  </header>
+  
+  <div class="stats-bar">
+    <div class="stat timer" id="timerStat">
+      <span class="stat-icon">⏱️</span>
+      <div class="stat-content">
+        <span class="stat-label">Tiempo</span>
+        <span class="stat-value" id="timer">05:00</span>
+      </div>
+    </div>
+    <div class="stat">
+      <span class="stat-icon">🎯</span>
+      <div class="stat-content">
+        <span class="stat-label">Encontradas</span>
+        <span class="stat-value" id="foundCount">0/10</span>
+      </div>
+    </div>
+    <div class="stat">
+      <span class="stat-icon">⚡</span>
+      <div class="stat-content">
+        <span class="stat-label">Puntuación</span>
+        <span class="stat-value" id="score">0</span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="main-grid">
+    <div class="grid-wrapper">
+      <div class="grid" id="grid"></div>
+      <p class="hint">💡 Arrastra sobre las letras para seleccionar palabras (horizontal, vertical o diagonal)</p>
+    </div>
+    
+    <div class="words-panel">
+      <div class="panel-title">
+        <span>Palabras</span>
+        <span class="counter" id="counter">0/10</span>
+      </div>
+      <div class="words-list" id="wordsList"></div>
+    </div>
+  </div>
+  
+  <div class="controls">
+    <button class="btn" id="resetBtn">🔄 Reiniciar</button>
+    <button class="btn" id="hintBtn">💡 Pista</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-icon" id="modalIcon">🏆</div>
+    <h2 id="modalTitle">¡Completado!</h2>
+    <p id="modalText">Has encontrado todas las palabras.</p>
+    <div class="modal-stats">
+      <div class="modal-stat">
+        <div class="modal-stat-value" id="modalScore">0</div>
+        <div class="modal-stat-label">Puntuación</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-value" id="modalTime">00:00</div>
+        <div class="modal-stat-label">Tiempo</div>
+      </div>
+    </div>
+    <button class="btn primary" id="modalBtn">Jugar de nuevo</button>
+  </div>
+</div>
+
+<script>
+const WORDS = [
+  'PRIVACIDAD',
+  'TRANSPARENCIA',
+  'JUSTICIA',
+  'RESPONSABILIDAD',
+  'SESGO',
+  'AUTONOMIA',
+  'BENEFICENCIA',
+  'EQUIDAD',
+  'CONSENTIMIENTO',
+  'DIGNIDAD'
+];
+
+const GRID_SIZE = 16;
+const DIRECTIONS = [
+  [0, 1],   // derecha
+  [0, -1],  // izquierda
+  [1, 0],   // abajo
+  [-1, 0],  // arriba
+  [1, 1],   // diagonal abajo-derecha
+  [-1, -1], // diagonal arriba-izquierda
+  [1, -1],  // diagonal abajo-izquierda
+  [-1, 1]   // diagonal arriba-derecha
+];
+
+let grid = [];
+let wordPlacements = {};
+let foundWords = new Set();
+let selecting = false;
+let startCell = null;
+let currentSelection = [];
+let timeLeft = 300;
+let timerInterval = null;
+let score = 0;
+let gameActive = true;
+
+function createEmptyGrid() {
+  return Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(''));
+}
+
+function canPlace(word, row, col, dr, dc) {
+  for (let i = 0; i < word.length; i++) {
+    const r = row + i * dr;
+    const c = col + i * dc;
+    if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE) return false;
+    if (grid[r][c] !== '' && grid[r][c] !== word[i]) return false;
+  }
+  return true;
+}
+
+function placeWord(word) {
+  const shuffledDirs = [...DIRECTIONS].sort(() => Math.random() - 0.5);
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const dir = shuffledDirs[attempt % shuffledDirs.length];
+    const row = Math.floor(Math.random() * GRID_SIZE);
+    const col = Math.floor(Math.random() * GRID_SIZE);
+    if (canPlace(word, row, col, dir[0], dir[1])) {
+      const cells = [];
+      for (let i = 0; i < word.length; i++) {
+        const r = row + i * dir[0];
+        const c = col + i * dir[1];
+        grid[r][c] = word[i];
+        cells.push([r, c]);
+      }
+      return cells;
+    }
+  }
+  return null;
+}
+
+function buildGrid() {
+  grid = createEmptyGrid();
+  wordPlacements = {};
+  const shuffledWords = [...WORDS].sort(() => Math.random() - 0.5);
+  
+  for (const word of shuffledWords) {
+    const cells = placeWord(word);
+    if (cells) {
+      wordPlacements[word] = cells;
+    } else {
+      console.warn('No se pudo colocar:', word);
+    }
+  }
+  
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      if (grid[r][c] === '') {
+        grid[r][c] = letters[Math.floor(Math.random() * letters.length)];
+      }
+    }
+  }
+}
+
+function renderGrid() {
+  const gridEl = document.getElementById('grid');
+  gridEl.innerHTML = '';
+  gridEl.style.gridTemplateColumns = `repeat(${GRID_SIZE}, var(--cell-size))`;
+  
+  for (let r = 0; r < GRID_SIZE; r++) {
+    for (let c = 0; c < GRID_SIZE; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.textContent = grid[r][c];
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+      gridEl.appendChild(cell);
+    }
+  }
+}
+
+function renderWords() {
+  const list = document.getElementById('wordsList');
+  list.innerHTML = '';
+  WORDS.forEach(word => {
+    const item = document.createElement('div');
+    item.className = 'word-item' + (foundWords.has(word) ? ' found' : '');
+    item.dataset.word = word;
+    item.innerHTML = `<span class="check">✓</span><span>${word}</span>`;
+    list.appendChild(item);
+  });
+  document.getElementById('counter').textContent = `${foundWords.size}/10`;
+  document.getElementById('foundCount').textContent = `${foundWords.size}/10`;
+}
+
+function getCell(r, c) {
+  return document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+}
+
+function clearSelection() {
+  document.querySelectorAll('.cell.selecting').forEach(c => c.classList.remove('selecting'));
+  currentSelection = [];
+}
+
+function getSelectionLine(startR, startC, endR, endC) {
+  const dr = endR - startR;
+  const dc = endC - startC;
+  const len = Math.max(Math.abs(dr), Math.abs(dc));
+  if (len === 0) return [[startR, startC]];
+  
+  const stepR = dr === 0 ? 0 : dr / Math.abs(dr);
+  const stepC = dc === 0 ? 0 : dc / Math.abs(dc);
+  
+  // Solo líneas rectas (horizontal, vertical, diagonal exacta)
+  if (Math.abs(dr) !== Math.abs(dc) && dr !== 0 && dc !== 0) {
+    // No es línea válida, devolver solo el inicio
+    return [[startR, startC]];
+  }
+  
+  const cells = [];
+  for (let i = 0; i <= len; i++) {
+    cells.push([startR + i * stepR, startC + i * stepC]);
+  }
+  return cells;
+}
+
+function updateSelection(endR, endC) {
+  clearSelection();
+  if (!startCell) return;
+  
+  const cells = getSelectionLine(startCell.r, startCell.c, endR, endC);
+  currentSelection = cells;
+  cells.forEach(([r, c]) => {
+    const cell = getCell(r, c);
+    if (cell) cell.classList.add('selecting');
+  });
+}
+
+function checkSelection() {
+  if (currentSelection.length < 2) return;
+  
+  const selectedWord = currentSelection.map(([r, c]) => grid[r][c]).join('');
+  const reversedWord = [...selectedWord].reverse().join('');
+  
+  let matchedWord = null;
+  for (const word of WORDS) {
+    if (!foundWords.has(word) && (word === selectedWord || word === reversedWord)) {
+      matchedWord = word;
+      break;
+    }
+  }
+  
+  if (matchedWord) {
+    foundWords.add(matchedWord);
+    score += matchedWord.length * 10 + Math.floor(timeLeft / 10);
+    document.getElementById('score').textContent = score;
+    
+    currentSelection.forEach(([r, c]) => {
+      const cell = getCell(r, c);
+      if (cell) {
+        cell.classList.remove('selecting');
+        cell.classList.add('found');
+      }
+    });
+    
+    renderWords();
+    
+    if (foundWords.size === WORDS.length) {
+      endGame(true);
+    }
+  }
+  
+  clearSelection();
+}
+
+function handleCellEvent(e) {
+  if (!gameActive) return;
+  const target = e.target.closest('.cell');
+  if (!target) return;
+  
+  const r = parseInt(target.dataset.row);
+  const c = parseInt(target.dataset.col);
+  
+  if (e.type === 'mousedown' || e.type === 'touchstart') {
+    e.preventDefault();
+    selecting = true;
+    startCell = { r, c };
+    updateSelection(r, c);
+  } else if (e.type === 'mousemove' && selecting) {
+    updateSelection(r, c);
+  } else if (e.type === 'mouseup' && selecting) {
+    selecting = false;
+    checkSelection();
+  }
+}
+
+function handleTouchMove(e) {
+  if (!selecting || !gameActive) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (elem && elem.classList.contains('cell')) {
+    const r = parseInt(elem.dataset.row);
+    const c = parseInt(elem.dataset.col);
+    updateSelection(r, c);
+  }
+}
+
+function handleTouchEnd(e) {
+  if (!selecting) return;
+  selecting = false;
+  checkSelection();
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!gameActive) return;
+    timeLeft--;
+    updateTimerDisplay();
+    if (timeLeft <= 0) {
+      endGame(false);
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+  document.getElementById('timer').textContent = 
+    `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  
+  const timerStat = document.getElementById('timerStat');
+  if (timeLeft <= 60) {
+    timerStat.classList.add('warning');
+  } else {
+    timerStat.classList.remove('warning');
+  }
+}
+
+function endGame(won) {
+  gameActive = false;
+  clearInterval(timerInterval);
+  
+  const modal = document.getElementById('modal');
+  document.getElementById('modalIcon').textContent = won ? '🏆' : '⏰';
+  document.getElementById('modalTitle').textContent = won ? '¡Excelente!' : '¡Tiempo agotado!';
+  document.getElementById('modalText').textContent = won 
+    ? 'Has encontrado todas las palabras sobre ética en la IA.'
+    : `Encontraste ${foundWords.size} de 10 palabras. ¡Inténtalo de nuevo!`;
+  document.getElementById('modalScore').textContent = score;
+  
+  const elapsed = 300 - timeLeft;
+  const em = Math.floor(elapsed / 60);
+  const es = elapsed % 60;
+  document.getElementById('modalTime').textContent = 
+    `${String(em).padStart(2, '0')}:${String(es).padStart(2, '0')}`;
+  
+  modal.classList.add('active');
+}
+
+function showHint() {
+  if (!gameActive) return;
+  const remaining = WORDS.filter(w => !foundWords.has(w));
+  if (remaining.length === 0) return;
+  
+  const word = remaining[Math.floor(Math.random() * remaining.length)];
+  const cells = wordPlacements[word];
+  if (!cells || cells.length < 2) return;
+  
+  // Revelar primera y última letra
+  const [first, last] = [cells[0], cells[cells.length - 1]];
+  [first, last].forEach(([r, c]) => {
+    const cell = getCell(r, c);
+    if (cell) {
+      cell.style.background = 'linear-gradient(135deg, rgba(168, 85, 247, 0.5), rgba(0, 217, 255, 0.5))';
+      cell.style.boxShadow = '0 0 15px rgba(168, 85, 247, 0.6)';
+      setTimeout(() => {
+        if (!cell.classList.contains('found')) {
+          cell.style.background = '';
+          cell.style.boxShadow = '';
+        }
+      }, 2500);
+    }
+  });
+  
+  score = Math.max(0, score - 20);
+  document.getElementById('score').textContent = score;
+}
+
+function resetGame() {
+  foundWords.clear();
+  score = 0;
+  timeLeft = 300;
+  gameActive = true;
+  document.getElementById('score').textContent = '0';
+  document.getElementById('modal').classList.remove('active');
+  buildGrid();
+  renderGrid();
+  renderWords();
+  updateTimerDisplay();
+  startTimer();
+  attachGridEvents();
+}
+
+function attachGridEvents() {
+  const gridEl = document.getElementById('grid');
+  // Remover listeners anteriores clonando
+  const newGrid = gridEl.cloneNode(true);
+  gridEl.parentNode.replaceChild(newGrid, gridEl);
+  
+  newGrid.addEventListener('mousedown', handleCellEvent);
+  newGrid.addEventListener('mousemove', handleCellEvent);
+  newGrid.addEventListener('mouseup', handleCellEvent);
+  newGrid.addEventListener('mouseleave', () => {
+    if (selecting) {
+      selecting = false;
+      checkSelection();
+    }
+  });
+  newGrid.addEventListener('touchstart', handleCellEvent, { passive: false });
+  newGrid.addEventListener('touchmove', handleTouchMove, { passive: false });
+  newGrid.addEventListener('touchend', handleTouchEnd);
+}
+
+document.getElementById('resetBtn').addEventListener('click', resetGame);
+document.getElementById('hintBtn').addEventListener('click', showHint);
+document.getElementById('modalBtn').addEventListener('click', resetGame);
+
+// Inicialización
+buildGrid();
+renderGrid();
+renderWords();
+updateTimerDisplay();
+startTimer();
+attachGridEvents();
+</script>
+</body>
+</html>
